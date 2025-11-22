@@ -149,6 +149,12 @@
             color: #d32f2f;
             font-weight: bold;
         }
+        .paper-info {
+            text-align: center;
+            margin: 10px 0;
+            color: #666;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -162,6 +168,10 @@
             </button>
             <p>or drag and drop your image here</p>
             
+            <div class="paper-info">
+                A4 Paper Size: 210mm × 297mm
+            </div>
+            
             <div class="layout-controls">
                 <div class="control-group">
                     <label for="rows">Rows:</label>
@@ -172,13 +182,20 @@
                     <input type="number" id="columns" min="1" max="10" value="5">
                 </div>
                 <div class="control-group">
+                    <label for="photoWidth">Photo Width (mm):</label>
+                    <input type="number" id="photoWidth" min="10" max="210" value="42" step="0.1">
+                </div>
+                <div class="control-group">
                     <label for="photoHeight">Photo Height (mm):</label>
-                    <input type="number" id="photoHeight" min="10" max="297" value="59.4">
+                    <input type="number" id="photoHeight" min="10" max="297" value="59.4" step="0.1">
                 </div>
             </div>
             
             <div class="size-info" id="sizeInfo">
-                Each photo: 42mm x 59.4mm (1 row x 5 columns)
+                Each photo: 42mm × 59.4mm (1 row × 5 columns)
+            </div>
+            <div class="paper-info" id="paperUsage">
+                Paper usage: 210mm × 59.4mm (20% of A4 paper)
             </div>
             <div class="cutting-guide">
                 Cut along the grid lines to get identical photos
@@ -212,26 +229,36 @@
         const status = document.getElementById('status');
         const rowsInput = document.getElementById('rows');
         const columnsInput = document.getElementById('columns');
+        const photoWidthInput = document.getElementById('photoWidth');
         const photoHeightInput = document.getElementById('photoHeight');
         const sizeInfo = document.getElementById('sizeInfo');
+        const paperUsage = document.getElementById('paperUsage');
 
         let currentImageData = null;
 
         // Update layout when inputs change
         rowsInput.addEventListener('change', updateLayout);
         columnsInput.addEventListener('change', updateLayout);
+        photoWidthInput.addEventListener('change', updateLayout);
         photoHeightInput.addEventListener('change', updateLayout);
 
         function updateLayout() {
             const rows = parseInt(rowsInput.value) || 1;
             const columns = parseInt(columnsInput.value) || 5;
+            const photoWidth = parseFloat(photoWidthInput.value) || 42;
             const photoHeight = parseFloat(photoHeightInput.value) || 59.4;
             
-            // Calculate photo width
-            const photoWidth = 210 / columns;
-            
             // Update size info
-            sizeInfo.textContent = `Each photo: ${photoWidth.toFixed(1)}mm x ${photoHeight}mm (${rows} row${rows > 1 ? 's' : ''} x ${columns} column${columns > 1 ? 's' : ''})`;
+            sizeInfo.textContent = `Each photo: ${photoWidth}mm × ${photoHeight}mm (${rows} row${rows > 1 ? 's' : ''} × ${columns} column${columns > 1 ? 's' : ''})`;
+            
+            // Calculate paper usage
+            const totalWidth = columns * photoWidth;
+            const totalHeight = rows * photoHeight;
+            const widthPercentage = Math.min(100, (totalWidth / 210) * 100);
+            const heightPercentage = Math.min(100, (totalHeight / 297) * 100);
+            const paperPercentage = Math.min(100, (totalWidth * totalHeight) / (210 * 297) * 100);
+            
+            paperUsage.textContent = `Paper usage: ${totalWidth}mm × ${totalHeight}mm (${paperPercentage.toFixed(1)}% of A4 paper)`;
             
             // Update grid layout
             photoGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
@@ -253,8 +280,8 @@
         function createPhotoGrid() {
             const rows = parseInt(rowsInput.value) || 1;
             const columns = parseInt(columnsInput.value) || 5;
+            const photoWidth = parseFloat(photoWidthInput.value) || 42;
             const photoHeight = parseFloat(photoHeightInput.value) || 59.4;
-            const photoWidth = 210 / columns;
             
             // Clear existing grid
             photoGrid.innerHTML = '';
@@ -274,8 +301,8 @@
             photoGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
             photoGrid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
             
-            // Update size info
-            sizeInfo.textContent = `Each photo: ${photoWidth.toFixed(1)}mm x ${photoHeight}mm (${rows} row${rows > 1 ? 's' : ''} x ${columns} column${columns > 1 ? 's' : ''})`;
+            // Update size info and paper usage
+            updateLayout();
         }
 
         // File input change handler
@@ -367,8 +394,14 @@
             // Get layout parameters
             const rows = parseInt(rowsInput.value) || 1;
             const columns = parseInt(columnsInput.value) || 5;
+            const photoWidth = parseFloat(photoWidthInput.value) || 42;
             const photoHeight = parseFloat(photoHeightInput.value) || 59.4;
-            const photoWidth = pdfWidth / columns;
+
+            // Calculate starting position to center the grid on the page
+            const totalGridWidth = columns * photoWidth;
+            const totalGridHeight = rows * photoHeight;
+            const startX = (pdfWidth - totalGridWidth) / 2;
+            const startY = (pdfHeight - totalGridHeight) / 2;
 
             // Load the image and add it to the PDF
             const img = new Image();
@@ -376,8 +409,8 @@
                 // Add photos in grid layout
                 for (let row = 0; row < rows; row++) {
                     for (let col = 0; col < columns; col++) {
-                        const xPos = col * photoWidth;
-                        const yPos = row * photoHeight;
+                        const xPos = startX + (col * photoWidth);
+                        const yPos = startY + (row * photoHeight);
                         
                         // Add the image to PDF at exact size
                         pdf.addImage(
@@ -392,7 +425,7 @@
                 }
                 
                 // Save the PDF
-                pdf.save(`photos-${rows}x${columns}.pdf`);
+                pdf.save(`photos-${rows}x${columns}-${photoWidth}x${photoHeight}mm.pdf`);
                 status.textContent = 'PDF generated successfully! Check your downloads folder.';
             };
             
@@ -412,6 +445,7 @@
             // Reset to default values
             rowsInput.value = 1;
             columnsInput.value = 5;
+            photoWidthInput.value = 42;
             photoHeightInput.value = 59.4;
             
             // Recreate grid with default values
@@ -422,7 +456,7 @@
         createPhotoGrid();
 
         // Initial instructions
-        status.textContent = 'Please upload your photo to begin. Adjust rows, columns, and height as needed.';
+        status.textContent = 'Please upload your photo to begin. Adjust rows, columns, width and height as needed.';
     </script>
 </body>
 </html>
