@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Generator - 5 Photos (Single Row)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background-color: #fafafa;
+        }
+        .upload-section.drag-over {
+            border-color: #4CAF50;
+            background-color: #f0fff0;
+        }
+        #fileInput {
+            display: none;
+        }
+        .upload-btn {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .upload-btn:hover {
+            background: #45a049;
+        }
+        .preview-section {
+            display: none;
+            margin-bottom: 30px;
+        }
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: 1fr;
+            gap: 0;
+            margin: 20px 0;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ddd;
+            justify-items: center;
+        }
+        .photo-cell {
+            width: 4.2cm;
+            height: 5.94cm;
+            border: 1px solid #ccc;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .photo-cell img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .generate-btn {
+            background: #2196F3;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            margin: 10px;
+        }
+        .generate-btn:hover {
+            background: #1976D2;
+        }
+        .reset-btn {
+            background: #ff9800;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            margin: 10px;
+        }
+        .reset-btn:hover {
+            background: #f57c00;
+        }
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+            color: #666;
+        }
+        .size-info {
+            text-align: center;
+            margin: 10px 0;
+            color: #555;
+            font-size: 14px;
+        }
+        .cutting-guide {
+            text-align: center;
+            margin: 15px 0;
+            color: #d32f2f;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📷 Photo Generator - 5 Photos</h1>
+        
+        <div class="upload-section" id="uploadArea">
+            <input type="file" id="fileInput" accept="image/*">
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                📁 Upload Your Photo
+            </button>
+            <p>or drag and drop your image here</p>
+            <div class="size-info">
+                Each photo: 42mm x 59.4mm (5 photos in a single row on A4 paper)
+            </div>
+            <div class="cutting-guide">
+                Cut along the grid lines to get 5 identical photos
+            </div>
+        </div>
+
+        <div class="preview-section" id="previewSection">
+            <h3>Preview (1 row x 5 columns):</h3>
+            <div class="photo-grid" id="photoGrid">
+                <!-- 5 photo cells will be generated here -->
+            </div>
+            
+            <div class="controls">
+                <button class="generate-btn" onclick="generatePDF()">🖨️ Generate Printable PDF</button>
+                <button class="reset-btn" onclick="resetApp()">🔄 Upload Different Photo</button>
+            </div>
+        </div>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+
+        // DOM elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const previewSection = document.getElementById('previewSection');
+        const photoGrid = document.getElementById('photoGrid');
+        const status = document.getElementById('status');
+
+        let currentImageData = null;
+
+        // Create 5 photo cells for preview (single row of 5)
+        for (let i = 0; i < 5; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'photo-cell';
+            cell.id = `photoCell${i}`;
+            photoGrid.appendChild(cell);
+        }
+
+        // File input change handler
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                handleImageUpload(this.files[0]);
+            }
+        });
+
+        // Drag and drop functionality
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', function() {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleImageUpload(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleImageUpload(file) {
+            if (!file.type.match('image.*')) {
+                status.textContent = 'Please upload an image file (JPEG, PNG, etc.)';
+                return;
+            }
+
+            status.textContent = 'Processing image...';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentImageData = e.target.result;
+                
+                const img = new Image();
+                img.onload = function() {
+                    // Display preview in all 5 cells
+                    for (let i = 0; i < 5; i++) {
+                        const cell = document.getElementById(`photoCell${i}`);
+                        cell.innerHTML = '';
+                        const previewImg = document.createElement('img');
+                        previewImg.src = currentImageData;
+                        cell.appendChild(previewImg);
+                    }
+                    
+                    // Show preview section
+                    previewSection.style.display = 'block';
+                    status.textContent = 'Photo loaded successfully! Click "Generate Printable PDF" when ready.';
+                };
+                img.src = currentImageData;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function generatePDF() {
+            if (!currentImageData) {
+                status.textContent = 'Please upload a photo first.';
+                return;
+            }
+
+            status.textContent = 'Generating PDF...';
+
+            // Create PDF in A4 format
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+            const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+            
+            // Calculate exact dimensions for 5 photos in a single row
+            // 5 columns: 210mm / 5 = 42mm each
+            // Height: 59.4mm (as requested)
+            const photoWidth = pdfWidth / 5; // 42mm
+            const photoHeight = 59.4; // 59.4mm
+
+            // Position at the VERY TOP of the page
+            const startY = 0;
+
+            // Load the image and add it 5 times to the PDF (single row)
+            const img = new Image();
+            img.onload = function() {
+                // Add 5 photos in a single row at the top
+                for (let i = 0; i < 5; i++) {
+                    const xPos = i * photoWidth;
+                    
+                    // Add the image to PDF at exact size
+                    pdf.addImage(
+                        currentImageData, 
+                        'JPEG', 
+                        xPos, 
+                        startY, 
+                        photoWidth, 
+                        photoHeight
+                    );
+                }
+                
+                // Save the PDF
+                pdf.save('photos-5-single-row.pdf');
+                status.textContent = 'PDF generated successfully! Check your downloads folder.';
+            };
+            
+            img.onerror = function() {
+                status.textContent = 'Error loading image. Please try again.';
+            };
+            
+            img.src = currentImageData;
+        }
+
+        function resetApp() {
+            fileInput.value = '';
+            previewSection.style.display = 'none';
+            status.textContent = '';
+            currentImageData = null;
+            
+            // Clear all photo cells
+            for (let i = 0; i < 5; i++) {
+                const cell = document.getElementById(`photoCell${i}`);
+                cell.innerHTML = '';
+            }
+        }
+
+        // Initial instructions
+        status.textContent = 'Please upload your photo to begin.';
+    </script>
+</body>
+</html>
