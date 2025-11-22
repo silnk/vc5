@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Generator - 5 Photos (Single Row)</title>
+    <title>Photo Generator - Custom Layout</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -56,10 +56,32 @@
             display: none;
             margin-bottom: 30px;
         }
+        .layout-controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .control-group label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        .control-group input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+        }
         .photo-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            grid-template-rows: 1fr;
             gap: 0;
             margin: 20px 0;
             background: white;
@@ -68,8 +90,6 @@
             justify-items: center;
         }
         .photo-cell {
-            width: 4.2cm;
-            height: 5.94cm;
             border: 1px solid #ccc;
             overflow: hidden;
             display: flex;
@@ -133,7 +153,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>📷 Photo Generator - 5 Photos</h1>
+        <h1>📷 Custom Photo Generator</h1>
         
         <div class="upload-section" id="uploadArea">
             <input type="file" id="fileInput" accept="image/*">
@@ -141,23 +161,39 @@
                 📁 Upload Your Photo
             </button>
             <p>or drag and drop your image here</p>
-            <div class="size-info">
-                Each photo: 42mm x 59.4mm (5 photos in a single row on A4 paper)
+            
+            <div class="layout-controls">
+                <div class="control-group">
+                    <label for="rows">Rows:</label>
+                    <input type="number" id="rows" min="1" max="10" value="1">
+                </div>
+                <div class="control-group">
+                    <label for="columns">Columns:</label>
+                    <input type="number" id="columns" min="1" max="10" value="5">
+                </div>
+                <div class="control-group">
+                    <label for="photoHeight">Photo Height (mm):</label>
+                    <input type="number" id="photoHeight" min="10" max="297" value="59.4">
+                </div>
+            </div>
+            
+            <div class="size-info" id="sizeInfo">
+                Each photo: 42mm x 59.4mm (1 row x 5 columns)
             </div>
             <div class="cutting-guide">
-                Cut along the grid lines to get 5 identical photos
+                Cut along the grid lines to get identical photos
             </div>
         </div>
 
         <div class="preview-section" id="previewSection">
-            <h3>Preview (1 row x 5 columns):</h3>
+            <h3>Preview:</h3>
             <div class="photo-grid" id="photoGrid">
-                <!-- 5 photo cells will be generated here -->
+                <!-- Photo cells will be generated here dynamically -->
             </div>
             
             <div class="controls">
                 <button class="generate-btn" onclick="generatePDF()">🖨️ Generate Printable PDF</button>
-                <button class="reset-btn" onclick="resetApp()">🔄 Upload Different Photo</button>
+                <button class="reset-btn" onclick="resetApp()">🔄 Reset All</button>
             </div>
         </div>
 
@@ -174,15 +210,72 @@
         const previewSection = document.getElementById('previewSection');
         const photoGrid = document.getElementById('photoGrid');
         const status = document.getElementById('status');
+        const rowsInput = document.getElementById('rows');
+        const columnsInput = document.getElementById('columns');
+        const photoHeightInput = document.getElementById('photoHeight');
+        const sizeInfo = document.getElementById('sizeInfo');
 
         let currentImageData = null;
 
-        // Create 5 photo cells for preview (single row of 5)
-        for (let i = 0; i < 5; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'photo-cell';
-            cell.id = `photoCell${i}`;
-            photoGrid.appendChild(cell);
+        // Update layout when inputs change
+        rowsInput.addEventListener('change', updateLayout);
+        columnsInput.addEventListener('change', updateLayout);
+        photoHeightInput.addEventListener('change', updateLayout);
+
+        function updateLayout() {
+            const rows = parseInt(rowsInput.value) || 1;
+            const columns = parseInt(columnsInput.value) || 5;
+            const photoHeight = parseFloat(photoHeightInput.value) || 59.4;
+            
+            // Calculate photo width
+            const photoWidth = 210 / columns;
+            
+            // Update size info
+            sizeInfo.textContent = `Each photo: ${photoWidth.toFixed(1)}mm x ${photoHeight}mm (${rows} row${rows > 1 ? 's' : ''} x ${columns} column${columns > 1 ? 's' : ''})`;
+            
+            // Update grid layout
+            photoGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+            photoGrid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            
+            // Update cell dimensions
+            const cells = photoGrid.querySelectorAll('.photo-cell');
+            cells.forEach(cell => {
+                cell.style.width = `${photoWidth / 10}cm`;
+                cell.style.height = `${photoHeight / 10}cm`;
+            });
+            
+            // Re-render preview if image is loaded
+            if (currentImageData) {
+                renderPreview();
+            }
+        }
+
+        function createPhotoGrid() {
+            const rows = parseInt(rowsInput.value) || 1;
+            const columns = parseInt(columnsInput.value) || 5;
+            const photoHeight = parseFloat(photoHeightInput.value) || 59.4;
+            const photoWidth = 210 / columns;
+            
+            // Clear existing grid
+            photoGrid.innerHTML = '';
+            
+            // Create cells
+            const totalCells = rows * columns;
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'photo-cell';
+                cell.id = `photoCell${i}`;
+                cell.style.width = `${photoWidth / 10}cm`;
+                cell.style.height = `${photoHeight / 10}cm`;
+                photoGrid.appendChild(cell);
+            }
+            
+            // Update grid layout
+            photoGrid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+            photoGrid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+            
+            // Update size info
+            sizeInfo.textContent = `Each photo: ${photoWidth.toFixed(1)}mm x ${photoHeight}mm (${rows} row${rows > 1 ? 's' : ''} x ${columns} column${columns > 1 ? 's' : ''})`;
         }
 
         // File input change handler
@@ -225,14 +318,7 @@
                 
                 const img = new Image();
                 img.onload = function() {
-                    // Display preview in all 5 cells
-                    for (let i = 0; i < 5; i++) {
-                        const cell = document.getElementById(`photoCell${i}`);
-                        cell.innerHTML = '';
-                        const previewImg = document.createElement('img');
-                        previewImg.src = currentImageData;
-                        cell.appendChild(previewImg);
-                    }
+                    renderPreview();
                     
                     // Show preview section
                     previewSection.style.display = 'block';
@@ -241,6 +327,23 @@
                 img.src = currentImageData;
             };
             reader.readAsDataURL(file);
+        }
+
+        function renderPreview() {
+            const rows = parseInt(rowsInput.value) || 1;
+            const columns = parseInt(columnsInput.value) || 5;
+            const totalCells = rows * columns;
+            
+            // Display preview in all cells
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.getElementById(`photoCell${i}`);
+                if (cell) {
+                    cell.innerHTML = '';
+                    const previewImg = document.createElement('img');
+                    previewImg.src = currentImageData;
+                    cell.appendChild(previewImg);
+                }
+            }
         }
 
         function generatePDF() {
@@ -261,35 +364,35 @@
             const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
             const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
             
-            // Calculate exact dimensions for 5 photos in a single row
-            // 5 columns: 210mm / 5 = 42mm each
-            // Height: 59.4mm (as requested)
-            const photoWidth = pdfWidth / 5; // 42mm
-            const photoHeight = 59.4; // 59.4mm
+            // Get layout parameters
+            const rows = parseInt(rowsInput.value) || 1;
+            const columns = parseInt(columnsInput.value) || 5;
+            const photoHeight = parseFloat(photoHeightInput.value) || 59.4;
+            const photoWidth = pdfWidth / columns;
 
-            // Position at the VERY TOP of the page
-            const startY = 0;
-
-            // Load the image and add it 5 times to the PDF (single row)
+            // Load the image and add it to the PDF
             const img = new Image();
             img.onload = function() {
-                // Add 5 photos in a single row at the top
-                for (let i = 0; i < 5; i++) {
-                    const xPos = i * photoWidth;
-                    
-                    // Add the image to PDF at exact size
-                    pdf.addImage(
-                        currentImageData, 
-                        'JPEG', 
-                        xPos, 
-                        startY, 
-                        photoWidth, 
-                        photoHeight
-                    );
+                // Add photos in grid layout
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < columns; col++) {
+                        const xPos = col * photoWidth;
+                        const yPos = row * photoHeight;
+                        
+                        // Add the image to PDF at exact size
+                        pdf.addImage(
+                            currentImageData, 
+                            'JPEG', 
+                            xPos, 
+                            yPos, 
+                            photoWidth, 
+                            photoHeight
+                        );
+                    }
                 }
                 
                 // Save the PDF
-                pdf.save('photos-5-single-row.pdf');
+                pdf.save(`photos-${rows}x${columns}.pdf`);
                 status.textContent = 'PDF generated successfully! Check your downloads folder.';
             };
             
@@ -306,15 +409,20 @@
             status.textContent = '';
             currentImageData = null;
             
-            // Clear all photo cells
-            for (let i = 0; i < 5; i++) {
-                const cell = document.getElementById(`photoCell${i}`);
-                cell.innerHTML = '';
-            }
+            // Reset to default values
+            rowsInput.value = 1;
+            columnsInput.value = 5;
+            photoHeightInput.value = 59.4;
+            
+            // Recreate grid with default values
+            createPhotoGrid();
         }
 
+        // Initialize the grid on page load
+        createPhotoGrid();
+
         // Initial instructions
-        status.textContent = 'Please upload your photo to begin.';
+        status.textContent = 'Please upload your photo to begin. Adjust rows, columns, and height as needed.';
     </script>
 </body>
 </html>
